@@ -1,0 +1,29 @@
+# 构建产物
+/bin/
+*.exe
+*.test
+*.out
+*.o
+*.a
+
+# 依赖与缓存
+/vendor/
+
+# 本地策略与密钥（切勿提交）
+policy.local.toml
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+
+# 编辑器 / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# 覆盖率
+coverage.out
+coverage.html

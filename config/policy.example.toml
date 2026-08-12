@@ -1,0 +1,16 @@
+# 复制到 ~/.config/ssh-remote/policy.toml 后按需修改。
+# 未出现的键保留 CLI 内置默认；未知键会导致调用失败。
+
+# command_timeout_ms = 60000
+# max_output_bytes = 1048576
+# max_file_bytes = 5242880
+
+# 覆盖整表（替换默认 denylist，请谨慎）
+# command_denylist = [
+#   '(?i)rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\s+/',
+# ]
+
+# write_allowlist = [
+#   "/tmp/",
+#   "~/agent-drop/",
+# ]
