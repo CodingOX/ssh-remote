@@ -16,6 +16,34 @@ description: >
 2. 目标机已在 `~/.ssh/config` 配置好（密钥/跳板由系统 ssh 处理）。
 3. **只解析 CLI 的 stdout JSON**；不要依赖 stderr。
 
+## 引导（前置未就绪时）
+
+前置不满足时**引导用户补配置**，不替用户改系统配置、不猜测密码。完整步骤见仓库 `docs/quickstart.md`。
+
+**1) Host 不在列表 / connect 失败**
+- 先 `ssh-remote hosts` 看已有别名
+- 用户要的 Host 没有 → 引导建立 `~/.ssh/config`：
+  `ssh-keygen -t ed25519` → `ssh-copy-id user@host` → 写 Host 块（HostName / User / IdentityFile，可选 ProxyJump）
+- 认证与跳板全走系统 OpenSSH；本 Skill 不存、不回显密码密钥
+
+**2) put 被 policy_denied**
+- 先解释 `error.message`，优先建议换白名单内路径（`/tmp/`、`~/agent-drop/`）
+- 用户确认要放宽 → 引导建立/修改 `~/.config/ssh-remote/policy.toml`：
+
+```toml
+# 复制 config/policy.example.toml 到 ~/.config/ssh-remote/policy.toml
+# ⚠️ write_allowlist 是覆盖式：一旦写了就整表替换默认，必须带上默认两条
+write_allowlist = [
+  "/tmp/",
+  "~/agent-drop/",
+  # 追加用户目录；尾 / 表示目录前缀，不带 / 表示精确文件
+]
+```
+
+- 匹配规则：尾 `/` = 目录前缀；`~/` 按远端 home 展开；相对路径与 `..` 一律拒绝
+- 改完先 `ssh-remote hosts` 验证解析（未知键会直接报错；合法键只有 5 个：
+  `command_timeout_ms` / `max_output_bytes` / `max_file_bytes` / `command_denylist` / `write_allowlist`），再重试 put
+
 ## 子命令
 
 | 命令 | 用途 |
