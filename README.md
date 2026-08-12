@@ -30,6 +30,7 @@ go build -o bin/ssh-remote ./cmd/ssh-remote
 
 需要本机已安装 OpenSSH 客户端（`ssh`、`scp`）。
 
+> 📖 从零到可用的完整引导（SSH 建立、policy.toml、首次验证清单）见 [`docs/quickstart.md`](docs/quickstart.md)。
 ## 用法
 
 ```bash
@@ -50,7 +51,7 @@ ssh-remote put  <host> <local-path> <remote-path>
 | 文件上限 | 5MiB |
 | put 白名单 | `/tmp/`、`~/agent-drop/` |
 
-可选配置：`~/.config/ssh-remote/policy.toml`（示例见 `config/policy.example.toml`）。
+可选配置：`~/.config/ssh-remote/policy.toml`（示例见 `config/policy.example.toml`；建立与匹配规则见 [`docs/quickstart.md`](docs/quickstart.md) §3）。
 
 ## Skill
 
