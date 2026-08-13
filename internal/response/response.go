@@ -15,6 +15,7 @@ const (
 	ExitRemote   = 3 // remote_exit
 	ExitConnect  = 4 // connect / timeout
 	ExitInternal = 5 // internal
+	ExitRemoteFS = 6 // remote_fs
 )
 
 // 机器可读错误码（Spec §5.4）
@@ -25,6 +26,7 @@ const (
 	CodeConnect      = "connect"
 	CodeTimeout      = "timeout"
 	CodeLocalFS      = "local_fs"
+	CodeRemoteFS     = "remote_fs"
 	CodeInternal     = "internal"
 )
 
@@ -44,11 +46,12 @@ type Meta struct {
 
 // Envelope 每次调用 stdout 输出的唯一 JSON 对象。
 type Envelope struct {
-	OK     bool            `json:"ok"`
-	Action string          `json:"action"`
-	Error  *ErrorBody      `json:"error"`
-	Meta   Meta            `json:"meta"`
-	Result json.RawMessage `json:"result"`
+	OK        bool            `json:"ok"`
+	Action    string          `json:"action"`
+	Retriable bool            `json:"retriable"`
+	Error     *ErrorBody      `json:"error"`
+	Meta      Meta            `json:"meta"`
+	Result    json.RawMessage `json:"result"`
 }
 
 // ExitForCode 将 error.code 映射为进程退出码。
@@ -62,10 +65,25 @@ func ExitForCode(code string) int {
 		return ExitPolicy
 	case CodeRemoteExit:
 		return ExitRemote
+	case CodeRemoteFS:
+		return ExitRemoteFS
 	case CodeConnect, CodeTimeout:
 		return ExitConnect
 	default:
 		return ExitInternal
+	}
+}
+
+// RetriableFor 根据 ok 与 error.code 给出信封 retriable 建议值；调用方显式写入 Envelope.Retriable。
+func RetriableFor(code string, ok bool) bool {
+	if ok {
+		return false
+	}
+	switch code {
+	case CodeConnect, CodeTimeout:
+		return true
+	default:
+		return false
 	}
 }
 
