@@ -6,8 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -18,6 +22,8 @@ type Options struct {
 	// MaxStdout / MaxStderr 各自字节上限（Spec：分别上限）
 	MaxStdout int
 	MaxStderr int
+	// DisableMux 为 true 时不传 ControlMaster 等复用参数（单测/显式回退）。
+	DisableMux bool
 }
 
 // ExecResult 远程命令结果。
@@ -34,11 +40,14 @@ type ExecResult struct {
 
 // SSHExec 执行：ssh [opts] host -- command
 // command 为已拼好的远端 shell 命令字符串。
+//
+// 连接复用由 OpenSSH ControlMaster=auto 负责：control socket 损坏时会自动新建连接，
+// runner 层不做额外重试；上层若需可设 Options.DisableMux 强制单次握手。
 func SSHExec(ctx context.Context, opt Options, host, command string) (*ExecResult, error) {
 	if host == "" {
 		return nil, fmt.Errorf("host is empty")
 	}
-	args := sshBaseArgs(opt.SSHConfig)
+	args := sshBaseArgs(opt)
 	args = append(args, host, "--", command)
 	return runCaptured(ctx, opt, "ssh", args)
 }
@@ -64,7 +73,7 @@ func RemoteHome(ctx context.Context, opt Options, host string) (string, error) {
 
 // SCPGet 下载：scp [opts] host:remote local
 func SCPGet(ctx context.Context, opt Options, host, remotePath, localPath string) (*ExecResult, error) {
-	args := scpBaseArgs(opt.SSHConfig)
+	args := scpBaseArgs(opt)
 	src := fmt.Sprintf("%s:%s", host, remotePath)
 	args = append(args, src, localPath)
 	return runCaptured(ctx, opt, "scp", args)
@@ -72,35 +81,89 @@ func SCPGet(ctx context.Context, opt Options, host, remotePath, localPath string
 
 // SCPPut 上传：scp [opts] local host:remote
 func SCPPut(ctx context.Context, opt Options, host, localPath, remotePath string) (*ExecResult, error) {
-	args := scpBaseArgs(opt.SSHConfig)
+	args := scpBaseArgs(opt)
 	dst := fmt.Sprintf("%s:%s", host, remotePath)
 	args = append(args, localPath, dst)
 	return runCaptured(ctx, opt, "scp", args)
 }
 
-func sshBaseArgs(config string) []string {
+func sshBaseArgs(opt Options) []string {
 	args := []string{
 		"-o", "BatchMode=yes",
 		"-o", "StrictHostKeyChecking=accept-new",
+		"-o", "ConnectTimeout=10",
 		"-T",
 	}
-	if config != "" {
-		args = append(args, "-F", config)
+	args = append(args, controlMuxArgs(opt)...)
+	if opt.SSHConfig != "" {
+		args = append(args, "-F", opt.SSHConfig)
 	}
 	return args
 }
 
-func scpBaseArgs(config string) []string {
+func scpBaseArgs(opt Options) []string {
 	// scp 通过 -o 传给底层 ssh
 	args := []string{
 		"-o", "BatchMode=yes",
 		"-o", "StrictHostKeyChecking=accept-new",
+		"-o", "ConnectTimeout=10",
 		"-q",
 	}
-	if config != "" {
-		args = append(args, "-F", config)
+	args = append(args, controlMuxArgs(opt)...)
+	if opt.SSHConfig != "" {
+		args = append(args, "-F", opt.SSHConfig)
 	}
 	return args
+}
+
+// MuxEnabled 报告本次调用是否实际带上 ControlMaster 参数（目录不可写或 DisableMux 时为 false）。
+func MuxEnabled(opt Options) bool {
+	return len(controlMuxArgs(opt)) > 0
+}
+
+// controlMuxArgs 返回 OpenSSH 连接复用参数；目录不可写或 DisableMux 时省略（回退单次握手）。
+func controlMuxArgs(opt Options) []string {
+	if opt.DisableMux {
+		return nil
+	}
+	dir, err := controlPathDir()
+	if err != nil {
+		return nil
+	}
+	if err := ensureControlDir(dir); err != nil {
+		return nil
+	}
+	path := filepath.Join(dir, "cm-%C")
+	return []string{
+		"-o", "ControlMaster=auto",
+		"-o", "ControlPersist=60s",
+		"-o", "ControlPath=" + path,
+	}
+}
+
+func controlPathDir() (string, error) {
+	base := os.Getenv("XDG_CACHE_HOME")
+	if base == "" {
+		var err error
+		base, err = os.UserCacheDir()
+		if err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(base, "ssh-remote"), nil
+}
+
+func ensureControlDir(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	testFile := filepath.Join(dir, ".write-test")
+	f, err := os.Create(testFile)
+	if err != nil {
+		return err
+	}
+	_ = f.Close()
+	return os.Remove(testFile)
 }
 
 func runCaptured(ctx context.Context, opt Options, bin string, args []string) (*ExecResult, error) {
@@ -132,8 +195,21 @@ func runCaptured(ctx context.Context, opt Options, bin string, args []string) (*
 	stderrBuf.limit = opt.MaxStderr
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
+	setProcessGroup(cmd)
 
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	pgid := processGroupID(cmd)
+	go func() {
+		<-cctx.Done()
+		if cctx.Err() == context.DeadlineExceeded {
+			killByPGID(pgid, cmd)
+		}
+	}()
+
+	err := cmd.Wait()
 	res := &ExecResult{
 		Stdout:    stdoutBuf.String(),
 		Stderr:    stderrBuf.String(),
@@ -141,6 +217,7 @@ func runCaptured(ctx context.Context, opt Options, bin string, args []string) (*
 	}
 
 	if cctx.Err() == context.DeadlineExceeded {
+		killByPGID(pgid, cmd)
 		res.TimedOut = true
 		res.ConnectErr = true
 		res.ExitCode = -1
@@ -164,6 +241,47 @@ func runCaptured(ctx context.Context, opt Options, bin string, args []string) (*
 	}
 	res.ExitCode = 0
 	return res, nil
+}
+
+// setProcessGroup 让 ssh/scp 子进程成为新进程组组长，便于超时后整组清理。
+func setProcessGroup(cmd *exec.Cmd) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
+	}
+	cmd.SysProcAttr.Setpgid = true
+}
+
+func processGroupID(cmd *exec.Cmd) int {
+	if runtime.GOOS == "windows" || cmd.Process == nil {
+		return 0
+	}
+	pgid, err := syscall.Getpgid(cmd.Process.Pid)
+	if err != nil {
+		return 0
+	}
+	return pgid
+}
+
+// killByPGID 在 context 超时后 best-effort 杀掉整棵子进程树。
+// 仅杀本次 cmd 的 pgid，不 SIGKILL 其他 ssh ControlMaster。
+// 共享 control socket（cm-%C 按 host 哈希）不在此删除，靠 ControlPersist 空闲回收。
+func killByPGID(pgid int, cmd *exec.Cmd) {
+	if runtime.GOOS == "windows" {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		return
+	}
+	if pgid > 0 {
+		_ = syscall.Kill(-pgid, syscall.SIGKILL)
+		return
+	}
+	if cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
 }
 
 // limitedBuffer 截断写入，避免撑爆内存与 Agent 上下文。
