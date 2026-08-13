@@ -54,9 +54,12 @@ Host prod-api
 ### 2.4 验证 SSH
 
 ```bash
-ssh-remote hosts                       # 应能看到 prod-api
+ssh-remote hosts                       # 应能看到 prod-api（result.hosts 为对象数组）
+ssh-remote doctor prod-api             # 非破坏性诊断：config 解析 + 可选 probe
 ssh-remote exec prod-api -- uptime     # 应返回 ok:true
 ```
+
+`hosts` 成功时 `result.hosts[]` 每条含 `name` / `hostname` / `user` / `port` / `proxy_jump`（空字段保留键、值为 `""`）。
 
 ## 3. 建立 policy.toml（可选，默认已安全）
 
@@ -72,11 +75,26 @@ cp config/policy.example.toml ~/.config/ssh-remote/policy.toml
 
 ### 3.2 按需修改
 
-可配的键只有 5 个：`command_timeout_ms`、`max_output_bytes`、`max_file_bytes`、
-`command_denylist`、`write_allowlist`。没写的键保留内置默认；**写错键名会直接报错**（防拼写静默失效）。
+合法键共 11 个（完整列表与注释见 `config/policy.example.toml`）：
 
-> ⚠️ **覆盖式语义（最重要）**：`write_allowlist` 与 `command_denylist` 一旦在文件里出现，
-> 就**整表替换**内置默认。要放宽白名单，必须把默认条目一起带上：
+| 键 | 说明 |
+| :--- | :--- |
+| `command_timeout_ms` | 整体超时（毫秒） |
+| `max_output_bytes` | exec stdout/stderr 各自上限 |
+| `max_file_bytes` | get/put 单文件上限 |
+| `max_command_chars` | exec 命令串最大长度 |
+| `read_only` | 只读模式（拒 put；exec 限冻结只读集合） |
+| `command_allowlist` | 命令白名单正则（覆盖式） |
+| `command_denylist` | 命令黑名单正则（覆盖式） |
+| `write_allowlist` | put 远端路径白名单（覆盖式） |
+| `read_denylist` | get 远端敏感路径黑名单（覆盖式） |
+| `local_denylist` | put 源 / get 目标本机路径黑名单（覆盖式） |
+
+没写的键保留内置默认；**写错键名会直接报错**（防拼写静默失效）。
+
+> ⚠️ **覆盖式语义（最重要）**：`write_allowlist`、`command_denylist`、`read_denylist`、
+> `local_denylist`、`command_allowlist` 一旦在文件里出现，就**整表替换**内置默认。
+> 要放宽白名单，必须把默认条目一起带上：
 
 ```toml
 write_allowlist = [
@@ -119,7 +137,10 @@ ssh-remote put prod-api ./x.sh /etc/x.sh        # 白名单外 → policy_denied
 ## 5. 常见问题
 
 **Q：报 `unknown policy key: xxx`？**
-policy.toml 里写了不存在的键。对照 §3.2 的 5 个键名修正。
+policy.toml 里写了不存在的键。对照 §3.2 或 `config/policy.example.toml` 修正。
+
+**Q：connect / hosts 都正常但 exec/get/put 仍失败？**
+先跑 `ssh-remote doctor <host>` 看 `result`（`ssh_binary`、`host_found`、`mux_enabled`、`probe` 等），再查 policy 或路径策略。
 
 **Q：put 报 `remote path not in write allowlist`？**
 目标路径不在白名单。要么换到白名单路径（如 `/tmp/`），要么按 §3 改 policy.toml 后重试。
