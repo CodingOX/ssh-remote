@@ -19,15 +19,22 @@ func main() {
 		return
 	}
 	if len(args) == 0 {
-		writeUsage("subcommand required: hosts | exec | get | put")
+		writeUsage("subcommand required: hosts | exec | get | put | policy | doctor")
+		return
+	}
+
+	// version / help 不依赖 policy，避免坏 policy.toml 挡住排障入口
+	if isMetaSub(args[0]) {
+		writeMeta(args[0])
 		return
 	}
 
 	if err := cfg.LoadPolicy(); err != nil {
 		response.WriteAndExit(response.Envelope{
-			OK:     false,
-			Action: args[0],
-			Error:  &response.ErrorBody{Code: response.CodeUsage, Message: "policy: " + err.Error()},
+			OK:        false,
+			Action:    args[0],
+			Retriable: response.RetriableFor(response.CodeUsage, false),
+			Error:     &response.ErrorBody{Code: response.CodeUsage, Message: "policy: " + err.Error()},
 			Meta: response.Meta{
 				Version:   version.Version,
 				Host:      nil,
@@ -66,12 +73,15 @@ func main() {
 		} else {
 			env = app.Put(cfg, host, local, remote)
 		}
-	case "version", "--version", "-V":
-		fmt.Println(version.Version)
-		os.Exit(0)
-	case "help", "-h", "--help":
-		fmt.Fprint(os.Stderr, helpText())
-		os.Exit(0)
+	case "policy":
+		env = app.ShowPolicy(cfg)
+	case "doctor":
+		host, err := parseDoctor(rest)
+		if err != nil {
+			env = usageEnv("doctor", err.Error())
+		} else {
+			env = app.Doctor(cfg, host)
+		}
 	default:
 		env = usageEnv(sub, "unknown subcommand: "+sub)
 	}
@@ -79,11 +89,48 @@ func main() {
 	response.WriteAndExit(env)
 }
 
-func usageEnv(action, msg string) response.Envelope {
+func isMetaSub(sub string) bool {
+	switch sub {
+	case "version", "--version", "-V", "help", "-h", "--help":
+		return true
+	default:
+		return false
+	}
+}
+
+func writeMeta(sub string) {
+	switch sub {
+	case "help", "-h", "--help":
+		fmt.Fprint(os.Stderr, helpText())
+		os.Exit(0)
+	default:
+		response.WriteAndExit(versionEnv())
+	}
+}
+
+// versionEnv 构造 version 子命令的 JSON 信封（action=version，result 含 CLI 版本）。
+func versionEnv() response.Envelope {
 	return response.Envelope{
-		OK:     false,
-		Action: action,
-		Error:  &response.ErrorBody{Code: response.CodeUsage, Message: msg},
+		OK:        true,
+		Action:    "version",
+		Retriable: response.RetriableFor("", true),
+		Error:     nil,
+		Meta: response.Meta{
+			Version:   version.Version,
+			Host:      nil,
+			TimeoutMs: 0,
+		},
+		Result: response.MustResult(map[string]string{"version": version.Version}),
+	}
+}
+
+func usageEnv(action, msg string) response.Envelope {
+	code := response.CodeUsage
+	return response.Envelope{
+		OK:        false,
+		Action:    action,
+		Retriable: response.RetriableFor(code, false),
+		Error:     &response.ErrorBody{Code: code, Message: msg},
 		Meta: response.Meta{
 			Version:   version.Version,
 			Host:      nil,
@@ -105,6 +152,8 @@ Usage:
   ssh-remote [global flags] exec <host> -- <command...>
   ssh-remote [global flags] get  <host> <remote-path> [local-path]
   ssh-remote [global flags] put  <host> <local-path> <remote-path>
+  ssh-remote [global flags] policy
+  ssh-remote [global flags] doctor <host>
 
 Global flags:
   --config <path>    ssh config file (-F)
@@ -162,6 +211,8 @@ func parseGlobal(argv []string) (*app.Config, []string, error) {
 			i++
 		case a == "-h", a == "--help":
 			return cfg, []string{"help"}, nil
+		case a == "-V", a == "--version":
+			return cfg, []string{"version"}, nil
 		default:
 			return nil, nil, fmt.Errorf("unknown flag: %s", a)
 		}
@@ -201,4 +252,11 @@ func parsePut(args []string) (host, local, remote string, err error) {
 		return "", "", "", fmt.Errorf("usage: put <host> <local-path> <remote-path>")
 	}
 	return args[0], args[1], args[2], nil
+}
+
+func parseDoctor(args []string) (host string, err error) {
+	if len(args) < 1 {
+		return "", fmt.Errorf("usage: doctor <host>")
+	}
+	return args[0], nil
 }
