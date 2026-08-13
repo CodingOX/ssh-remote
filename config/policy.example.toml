@@ -1,16 +1,40 @@
 # 复制到 ~/.config/ssh-remote/policy.toml 后按需修改。
-# 未出现的键保留 CLI 内置默认；未知键会导致调用失败。
+# 未出现的键保留 CLI 内置默认。
+# ⚠️ 未知键会导致调用失败（防拼写静默失效）。
+# ⚠️ 带「覆盖式」标注的键：一旦在文件中出现，整表替换内置默认，须自行带上需要的默认条目。
 
-# command_timeout_ms = 60000
-# max_output_bytes = 1048576
-# max_file_bytes = 5242880
+# ── 限额与超时 ──────────────────────────────────────────────────────────────
 
-# 覆盖整表（替换默认 denylist，请谨慎）
-# command_denylist = [
+# command_timeout_ms = 60000          # exec/get/put 整体超时（毫秒）；可被 --timeout 覆盖
+# max_output_bytes = 1048576          # exec 的 stdout / stderr 各自上限（字节）
+# max_file_bytes = 5242880            # get/put 单文件大小上限（字节）
+# max_command_chars = 5000            # exec 命令串最大字符数（覆盖式：写则替换内置 5000）
+
+# ── 只读与命令约束 ──────────────────────────────────────────────────────────
+
+# read_only = false                   # true：拒绝 put；exec 仅允许冻结的只读命令集合
+# command_allowlist = [               # 覆盖式：非空时命令须匹配至少一条正则才放行
+#   '(?i)^df\\s',
+#   '(?i)^uptime$',
+# ]
+
+# command_denylist = [                # 覆盖式：整表替换内置高危黑名单（请谨慎）
 #   '(?i)rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\\s+/',
 # ]
 
-# write_allowlist = [
+# ── 路径策略 ────────────────────────────────────────────────────────────────
+
+# write_allowlist = [                 # 覆盖式：put 远端路径白名单（默认含 /tmp/ 与 ~/agent-drop/）
 #   "/tmp/",
 #   "~/agent-drop/",
+# ]
+
+# read_denylist = [                   # 覆盖式：get 远端路径黑名单（默认拒 ~/.ssh/、/etc/shadow、authorized_keys）
+#   "~/.ssh/",
+#   "/etc/shadow",
+#   "authorized_keys",
+# ]
+
+# local_denylist = [                  # 覆盖式：put 本机源路径与 get 本机目标路径黑名单（默认拒 ~/.ssh/）
+#   "~/.ssh/",
 # ]
