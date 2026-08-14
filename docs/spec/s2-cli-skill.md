@@ -1,7 +1,7 @@
 # Spec：SSH Remote S2（Skill + Go 薄 CLI）
 
 **Status:** draft-for-implementation  
-**Based on:** Grill outcome（已确认）+ ADR-0001 + ADR-0002  
+**Based on:** Grill outcome（已确认）+ ADR-0001 + ADR-0002 + ADR-0003
 **Scope:** S2 可验收合同；不含实现细节与 NPM 分发壳
 
 ---
@@ -414,8 +414,9 @@ Skill **不** 实现策略引擎；只引用本 Spec 的行为。
 - `Include` 完整 ssh config 语义强化  
 - 目录递归传输、远程编辑、备份回滚  
 - 审批流 / 审计日志文件  
-- 交互 session、后台 `tail -f` 会话  
 - per-host 策略覆盖  
+
+交互 Session / 后台 `tail -f` **不是** S2 的第二种 mode。日常排障维持 CLI + 连接复用；若未来单独立项，须另开 ADR（见 ADR-0003 与 `docs/notes/connection-reuse-vs-session.md`）。
 
 ---
 
@@ -443,4 +444,4 @@ ssh-remote/                 # 建议新建 Go 模块根（与参考 MCP 仓库�
 ```
 
 本 Spec 路径：`docs/spec/s2-cli-skill.md`。  
-领域词：`CONTEXT.md`。决策：`docs/adr/0001-*.md`、`0002-*.md`。
+领域词：`CONTEXT.md`。决策：`docs/adr/0001-*.md`、`0002-*.md`、`0003-*.md`。连接复用说明：`docs/notes/connection-reuse-vs-session.md`。

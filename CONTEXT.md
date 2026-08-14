@@ -27,3 +27,11 @@ _Avoid_: MCP Server, ssh2 自建连接层
 **运维 Skill**：
 指导 Agent 何时、对何 Host、用何子命令排障的说明与约定；不替代 CLI 的安全强制。
 _Avoid_: MCP Tool, 配置助手 skill（仅写 mcp.json 的那种）
+
+**连接复用**：
+同一 Host 上多次 CLI 调用复用 TCP / SSH 握手（OpenSSH ControlMaster）；每次 `exec` 仍是新 channel、新非交互 shell。
+_Avoid_: Session, 长连接, 长驻 MCP
+
+**Session**：
+同一条远端交互 shell 上的状态（工作目录、环境变量、交互程序）。本项目不提供。
+_Avoid_: 连接复用, ControlMaster

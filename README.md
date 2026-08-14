@@ -4,12 +4,14 @@
 
 - **不是 MCP**（对照开源方案：[`ssh-mcp`](https://github.com/tufantunc/ssh-mcp)、[`ssh-mcp-server`](https://github.com/classfang/ssh-mcp-server)）
 - 合同见 [`docs/spec/s2-cli-skill.md`](docs/spec/s2-cli-skill.md)
-- 决策见 [`docs/adr/`](docs/adr/)
+- 决策见 [`docs/adr/`](docs/adr/)（含 [ADR-0003](docs/adr/0003-no-session-reuse-daily-ops.md)：日常排障不做 Session）
+- 连接复用说明见 [`docs/notes/connection-reuse-vs-session.md`](docs/notes/connection-reuse-vs-session.md)
 - 领域词见 [`CONTEXT.md`](CONTEXT.md)
 
 ## 特性
 
 - 复用系统 `ssh` / `scp` 与 `~/.ssh/config`（含跳板、密钥、端口）
+- 同 Host 多次调用复用 **SSH 握手**（ControlMaster），不是交互 Session
 - 子命令：`hosts` · `exec` · `get` · `put`
 - stdout **始终为单个 JSON**，便于 Agent 解析
 - CLI 层强制：命令黑名单、写路径白名单、超时与大小上限
@@ -83,7 +85,7 @@ go test ./...
 
 ## 二期
 
-NPM 多平台二进制包装、审计、交互 session 等见 Spec §11。
+NPM 多平台二进制包装、审计等见 Spec §11。交互 Session 不在本产品范围，见 [ADR-0003](docs/adr/0003-no-session-reuse-daily-ops.md)。
 
 ## License
 

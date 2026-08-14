@@ -66,7 +66,7 @@ write_allowlist = [
 
 全局可选：`--config`、`--policy`、`--timeout 30s`、`--workdir /path`（仅 exec）。
 
-**连接复用（默认开启）：** CLI 对 ssh/scp 传 `ControlMaster=auto` + `ControlPersist=60s`，同 Host 多次调用复用握手；Agent **用法不变**，无需显式管理 session。
+**连接复用（默认开启）：** CLI 对 ssh/scp 传 `ControlMaster=auto` + `ControlPersist=60s`，同 Host 多次调用复用**握手**；每次 `exec` 仍是新 channel + 新非交互 shell，**不是** Session。Agent **用法不变**，无需显式管理 session。日常排障不引入 MCP / 长驻 PTY，见仓库 ADR-0003。
 
 ## JSON 合同（必读）
 
