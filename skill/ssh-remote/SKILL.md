@@ -11,7 +11,7 @@ description: >
 
 用 **`ssh-remote` CLI** 操作远程主机。策略（命令黑名单、写路径白名单、大小/超时）在 CLI 内强制，本 Skill 不能也不应绕过。
 
-> 平台边界：仅支持 macOS 与 Linux；不支持 Windows 原生环境。WSL 按 Linux 环境处理。
+> 平台边界：仅支持 macOS 与 Linux；**不支持 Windows**。WSL 内的 Linux 环境按 Linux 处理。
 
 ## 安装与前置
 

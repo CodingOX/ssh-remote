@@ -14,6 +14,6 @@
 **Consequences:**
 
 - 必须依赖本机系统 OpenSSH 客户端（`ssh`、`scp`）；运行前通过 `ssh-remote doctor <host>` 的 `ssh_binary` 与 `scp_binary` 字段确认
-- 仅支持 macOS 与 Linux；不支持 Windows 原生环境，WSL 按 Linux 环境处理
+- 仅支持 macOS 与 Linux；**不支持 Windows**。WSL 内的 Linux 环境按 Linux 处理
 - JSON 输出合同与 exit code 语义成为 Agent 集成的稳定面，换语言或加 NPM 壳时不应破坏
 - 不提供交互 PTY / 长驻会话；有状态工作流由多次 `exec` 与远端路径约定完成

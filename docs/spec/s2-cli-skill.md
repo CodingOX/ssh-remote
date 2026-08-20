@@ -28,7 +28,7 @@
 | 角色×环境策略矩阵 / 人机审批流 | 不做 ssh-mcp 级 policy engine |
 | 模式 β 人终审暂存区 | 有限写 = 模式 α（白名单内可 put，随后可 exec） |
 | NPM 分发壳 | 二期；本 Spec 不定义 package.json |
-| Windows 原生环境 | 不支持；不构建或发布 Windows 二进制。WSL 按 Linux 环境处理 |
+| Windows | 不支持；不构建或发布 Windows 二进制。WSL 内的 Linux 环境按 Linux 处理 |
 
 ---
 

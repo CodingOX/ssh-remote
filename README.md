@@ -1,6 +1,6 @@
 # ssh-remote
 
-本机 AI Agent 用的 **Skill + Go 薄 CLI**：封装系统 OpenSSH，对 `~/.ssh/config` 中的 Host 做排障与有限文件操作。仅支持 macOS 与 Linux；不支持 Windows 原生环境。WSL 按 Linux 环境使用。
+本机 AI Agent 用的 **Skill + Go 薄 CLI**：封装系统 OpenSSH，对 `~/.ssh/config` 中的 Host 做排障与有限文件操作。仅支持 macOS 与 Linux；**不支持 Windows**。WSL 内的 Linux 环境按 Linux 使用。
 
 - **不是 MCP**（对照开源方案：[`ssh-mcp`](https://github.com/tufantunc/ssh-mcp)、[`ssh-mcp-server`](https://github.com/classfang/ssh-mcp-server)）
 - 合同见 [`docs/spec/s2-cli-skill.md`](docs/spec/s2-cli-skill.md)

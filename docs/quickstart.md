@@ -1,6 +1,6 @@
 # 快速上手（Quickstart）
 
-从零到能用的完整引导：**安装 CLI → 检查本机 OpenSSH → 建立 SSH → 建立 policy.toml → 首次验证**。仅支持 macOS 与 Linux；不支持 Windows 原生环境。WSL 按 Linux 环境使用。
+从零到能用的完整引导：**安装 CLI → 检查本机 OpenSSH → 建立 SSH → 建立 policy.toml → 首次验证**。仅支持 macOS 与 Linux；**不支持 Windows**。WSL 内的 Linux 环境按 Linux 使用。
 Skill 的前置条件都在这里落地。
 
 ## 1. 安装 CLI
