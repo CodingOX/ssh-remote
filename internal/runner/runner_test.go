@@ -247,8 +247,8 @@ func main() {
 	if err != nil {
 		t.Fatalf("parse child pid %q: %v", raw, err)
 	}
-	if processAlive(childPID) {
-		t.Fatalf("child process %d still alive after timeout kill", childPID)
+	if processRunning(childPID) {
+		t.Fatalf("child process %d still running after timeout kill", childPID)
 	}
 }
 
@@ -260,12 +260,20 @@ func fileExecSummary(path string) string {
 	return fmt.Sprintf("mode=%s size=%d executable=%v", info.Mode(), info.Size(), info.Mode()&0o111 != 0)
 }
 
-func processAlive(pid int) bool {
+// processRunning 判断进程是否仍可被调度运行。
+// 在 Linux 容器中，已被 SIGKILL 的孤儿子进程可能短暂保留为僵尸态；
+// 这时 kill(pid, 0) 仍会成功，但进程已不能继续执行，不能判为清理失败。
+func processRunning(pid int) bool {
 	proc, err := os.FindProcess(pid)
+	if err != nil || proc.Signal(syscall.Signal(0)) != nil {
+		return false
+	}
+
+	state, err := exec.Command("ps", "-o", "stat=", "-p", strconv.Itoa(pid)).Output()
 	if err != nil {
 		return false
 	}
-	return proc.Signal(syscall.Signal(0)) == nil
+	return !strings.HasPrefix(strings.TrimSpace(string(state)), "Z")
 }
 
 func TestLimitedBufferTruncates(t *testing.T) {
