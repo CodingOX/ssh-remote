@@ -11,6 +11,8 @@ description: >
 
 用 **`ssh-remote` CLI** 操作远程主机。策略（命令黑名单、写路径白名单、大小/超时）在 CLI 内强制，本 Skill 不能也不应绕过。
 
+> 平台边界：仅支持 macOS 与 Linux；不支持 Windows 原生环境。WSL 按 Linux 环境处理。
+
 ## 安装与前置
 
 **先检查再安装。** 若 `command -v ssh-remote` 无输出，向用户说明需要安装 CLI；不要伪造 GitHub Release 下载地址，也不要用 `curl | sh`。
@@ -51,8 +53,9 @@ go build -o bin/ssh-remote ./cmd/ssh-remote
 ## 前置
 
 1. PATH 中可执行 `ssh-remote`（仅在已 clone 源码的开发期可用 `go run ./cmd/ssh-remote`）。
-2. 目标机已在 `~/.ssh/config` 配置好（密钥/跳板由系统 ssh 处理）。
-3. **只解析 CLI 的 stdout JSON**；不要依赖 stderr。
+2. 本机 OpenSSH 客户端 `ssh` 与 `scp` 均可用；以 `ssh-remote doctor <host>` 返回的 `result.ssh_binary=true` 和 `result.scp_binary=true` 为准。
+3. 目标机已在 `~/.ssh/config` 配置好（密钥/跳板由系统 ssh 处理）。
+4. **只解析 CLI 的 stdout JSON**；不要依赖 stderr。
 
 ## 引导（前置未就绪时）
 

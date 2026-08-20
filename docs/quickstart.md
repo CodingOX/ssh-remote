@@ -1,6 +1,6 @@
 # 快速上手（Quickstart）
 
-从零到能用的完整引导：**安装 CLI → 建立 SSH → 建立 policy.toml → 首次验证**。
+从零到能用的完整引导：**安装 CLI → 检查本机 OpenSSH → 建立 SSH → 建立 policy.toml → 首次验证**。仅支持 macOS 与 Linux；不支持 Windows 原生环境。WSL 按 Linux 环境使用。
 Skill 的前置条件都在这里落地。
 
 ## 1. 安装 CLI
@@ -26,7 +26,7 @@ go build -o bin/ssh-remote ./cmd/ssh-remote
 ./bin/ssh-remote version
 ```
 
-前置：本机已装 OpenSSH 客户端（`ssh`、`scp`）。tag `vMAJOR.MINOR.PATCH` 会触发 GitHub Release 构建；首次成功发布前，请使用方式 B 或 C。
+前置：本机已装 OpenSSH 客户端（`ssh`、`scp`）。安装后先执行 `ssh-remote doctor <host>`；只有 `result.ssh_binary` 和 `result.scp_binary` 都为 `true` 时，才能执行远程操作。tag `vMAJOR.MINOR.PATCH` 会触发 GitHub Release 构建；首次成功发布前，请使用方式 B 或 C。
 
 ## 2. 建立 SSH（一次性）
 
