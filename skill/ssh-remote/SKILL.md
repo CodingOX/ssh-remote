@@ -1,25 +1,62 @@
 ---
 name: ssh-remote
 description: >
-  通过本机 ssh-remote CLI（Go 薄封装系统 OpenSSH）对远程主机排障与有限文件操作。
-  当用户要 SSH 连服务器、看远程日志/进程/磁盘/服务状态、下载配置或日志、上传脚本到允许路径、
-  在远端安装官方包（JDK / Maven / 类似制品）、或提到 Host 别名 / ~/.ssh/config 远程操作时使用。
-  不要用裸 ssh 绕过本工具；不要使用 MCP。
+  通过本机 ssh-remote CLI（Go 薄封装系统 OpenSSH）对远程主机进行只读排障与受策略约束的文件操作。
+  当用户要 SSH 连服务器、诊断 SSH 配置/Host 别名、查看远程日志/进程/磁盘/服务状态、传输小型配置或已审脚本，
+  或在远端安装经校验的官方制品时使用；未安装 CLI 时先按本 Skill 的安装引导处理。
+  不要用裸 ssh/scp 绕过本工具；不要使用 MCP。
 ---
 
 # ssh-remote 运维 Skill
 
 用 **`ssh-remote` CLI** 操作远程主机。策略（命令黑名单、写路径白名单、大小/超时）在 CLI 内强制，本 Skill 不能也不应绕过。
 
+## 安装与前置
+
+**先检查再安装。** 若 `command -v ssh-remote` 无输出，向用户说明需要安装 CLI；不要伪造 GitHub Release 下载地址，也不要用 `curl | sh`。
+
+1. 确认系统 OpenSSH 客户端可用：`command -v ssh && command -v scp`。缺失时请用户按其操作系统安装 OpenSSH。
+2. **优先使用正式 GitHub Release 的预编译二进制**（不需要 Go）。先在 `https://github.com/CodingOX/ssh-remote/releases` 确认用户指定的 `vMAJOR.MINOR.PATCH` Release 已存在，并从该页面选择实际列出的平台资产：
+   - macOS Apple Silicon：`ssh-remote_<version>_darwin_arm64.tar.gz`
+   - macOS Intel：`ssh-remote_<version>_darwin_amd64.tar.gz`
+   - Linux x86_64：`ssh-remote_<version>_linux_amd64.tar.gz`
+   - Linux ARM64：`ssh-remote_<version>_linux_arm64.tar.gz`
+   - 同页的 `SHA256SUMS` 是唯一可信的校验清单。下载归档与 `SHA256SUMS` 后，macOS 用 `shasum -a 256 -c -`，Linux 用 `sha256sum -c -` 校验**所选归档**，再解压并将其中 `ssh-remote` 放进用户 PATH。
+   - 不得猜测 Release、资产名、URL 或校验和；未找到 Release 时转用 Go 安装，不得使用 `curl | sh`。
+
+3. Go 安装是可靠备选，需要 Go **1.22+**：
+
+```bash
+go install github.com/CodingOX/ssh-remote/cmd/ssh-remote@latest
+```
+
+4. 若安装完成但找不到命令，请提示用户将 `$(go env GOBIN)`（非空时）或 `$(go env GOPATH)/bin` 加入其 shell 的 `PATH`，重开终端后验证：
+
+```bash
+ssh-remote version
+```
+
+5. 需要固定版本时，仍须使用 Go **1.22+**，并从 GitHub 源码检出用户已核验的 tag 或 commit 后构建：
+
+```bash
+git clone https://github.com/CodingOX/ssh-remote.git
+cd ssh-remote
+git checkout <verified-tag-or-commit>
+go build -o bin/ssh-remote ./cmd/ssh-remote
+./bin/ssh-remote version
+```
+
+**预编译二进制说明：**仓库的 tag `vMAJOR.MINOR.PATCH` 会触发构建与 GitHub Release；在该工作流第一次成功运行前，不能假设已有预编译资产。
+
 ## 前置
 
-1. PATH 中可执行 `ssh-remote`（开发期可用 `go run ./cmd/ssh-remote`）。
+1. PATH 中可执行 `ssh-remote`（仅在已 clone 源码的开发期可用 `go run ./cmd/ssh-remote`）。
 2. 目标机已在 `~/.ssh/config` 配置好（密钥/跳板由系统 ssh 处理）。
 3. **只解析 CLI 的 stdout JSON**；不要依赖 stderr。
 
 ## 引导（前置未就绪时）
 
-前置不满足时**引导用户补配置**，不替用户改系统配置、不猜测密码。完整步骤见仓库 `docs/quickstart.md`。
+前置不满足时**引导用户补配置**，不替用户改系统配置、不猜测密码。下列步骤已覆盖 Skill 独立分发所需的最小配置。
 
 **1) Host 不在列表 / connect 失败**
 - 先 `ssh-remote hosts`，读 `result.hosts` 里每条对象的 `name` / `hostname` / `user` / `port` / `proxy_jump` 确认目标——**不要猜账号或跳板**
@@ -36,7 +73,7 @@ description: >
 - 用户确认要放宽 → 引导建立/修改 `~/.config/ssh-remote/policy.toml`：
 
 ```toml
-# 复制 config/policy.example.toml 到 ~/.config/ssh-remote/policy.toml
+# 可选：手工创建 ~/.config/ssh-remote/policy.toml；没有该文件时沿用 CLI 内置安全默认。
 # ⚠️ write_allowlist 是覆盖式：一旦写了就整表替换默认，必须带上默认两条
 write_allowlist = [
   "/tmp/",
@@ -46,11 +83,11 @@ write_allowlist = [
 ```
 
 - 匹配规则：尾 `/` = 目录前缀；`~/` 按远端 home 展开；相对路径与 `..` 一律拒绝
-- 改完先 `ssh-remote policy` 确认生效快照，再 `ssh-remote hosts` 验证解析（未知键会直接报错；合法键见 `config/policy.example.toml`），再重试 put
+- 改完先 `ssh-remote policy` 确认生效快照，再 `ssh-remote hosts` 验证解析（未知键会直接报错）；合法键包括 `command_timeout_ms`、`max_output_bytes`、`max_file_bytes`、`max_command_chars`、`read_only`、`command_allowlist`、`command_denylist`、`write_allowlist`、`read_denylist` 与 `local_denylist`，再重试 put
 
 **3) get/put 路径被拒（policy_denied / remote_fs）**
 - `get` 默认拒读远端 `~/.ssh/`、`/etc/shadow`、任意 `authorized_keys`；`put` 禁止本机源在 `~/.ssh/`；`get` 禁止写到本机 `~/.ssh/` 或含 `.git` 的路径——均需改路径，**禁止**用裸 scp 绕过
-- 用户确认要放宽读/写/本机路径限制 → 在 policy.toml 配置 `read_denylist` / `local_denylist`（均为**覆盖式**，须带上默认条目）；详见 `config/policy.example.toml`
+- 用户确认要放宽读/写/本机路径限制 → 在 `~/.config/ssh-remote/policy.toml` 配置 `read_denylist` / `local_denylist`（均为**覆盖式**，须带上默认条目）；先执行 `ssh-remote policy` 记录当前默认，再显式保留需要的条目
 
 ## 子命令
 

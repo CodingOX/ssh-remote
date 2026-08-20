@@ -5,17 +5,28 @@ Skill 的前置条件都在这里落地。
 
 ## 1. 安装 CLI
 
-```bash
-# 方式 A：远程安装
-go install github.com/CodingOX/ssh-remote/cmd/ssh-remote@latest
+**方式 A：GitHub Release 预编译二进制**（不需要 Go）
 
-# 方式 B：本地构建
-git clone https://github.com/CodingOX/ssh-remote.git
-cd ssh-remote
-go build -o bin/ssh-remote ./cmd/ssh-remote
+在 [Releases](https://github.com/CodingOX/ssh-remote/releases) 选择实际已发布的 `vMAJOR.MINOR.PATCH`，下载匹配平台的归档与 `SHA256SUMS`；校验通过后将归档中的 `ssh-remote` 放入 PATH。资产名为 `ssh-remote_<version>_<darwin|linux>_<amd64|arm64>.tar.gz`。macOS 使用 `shasum -a 256 -c -`，Linux 使用 `sha256sum -c -` 校验。不得猜测版本、资产名或校验和。
+
+**方式 B：Go 安装**（需要 Go 1.22+）
+
+```bash
+go install github.com/CodingOX/ssh-remote/cmd/ssh-remote@latest
+ssh-remote version
 ```
 
-前置：本机已装 OpenSSH 客户端（`ssh`、`scp`）。
+**方式 C：固定源码版本构建**（需要 Go 1.22+）
+
+```bash
+git clone https://github.com/CodingOX/ssh-remote.git
+cd ssh-remote
+git checkout <verified-tag-or-commit>
+go build -o bin/ssh-remote ./cmd/ssh-remote
+./bin/ssh-remote version
+```
+
+前置：本机已装 OpenSSH 客户端（`ssh`、`scp`）。tag `vMAJOR.MINOR.PATCH` 会触发 GitHub Release 构建；首次成功发布前，请使用方式 B 或 C。
 
 ## 2. 建立 SSH（一次性）
 
