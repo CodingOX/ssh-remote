@@ -1,0 +1,110 @@
+name: Release
+
+"on":
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify release tag
+    runs-on: ubuntu-latest
+    steps:
+      # 固定官方 Action 的 commit，避免可变 tag 被重指向。
+      # actions/checkout v5.0.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # actions/setup-go v5.0.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: "1.22.x"
+          cache: false
+      - name: Verify tag format and module tests
+        run: |
+          if ! printf '%s\n' "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Release tag must use vMAJOR.MINOR.PATCH format:" >&2
+            echo "${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          go test ./...
+
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      # actions/checkout v5.0.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      # actions/setup-go v5.0.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: "1.22.x"
+          cache: false
+      - name: Build archive
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          name="ssh-remote_${VERSION}_${GOOS}_${GOARCH}"
+          ldflags="-s -w -X github.com/CodingOX/ssh-remote/internal/version.Version=${VERSION}"
+          mkdir -p dist/"${name}"
+          CGO_ENABLED=0 go build \
+            -trimpath \
+            -ldflags "${ldflags}" \
+            -o dist/"${name}"/ssh-remote \
+            ./cmd/ssh-remote
+          tar -C dist -czf dist/"${name}".tar.gz "${name}"
+          rm -rf dist/"${name}"
+      # actions/upload-artifact v4.6.2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ssh-remote_${{ github.ref_name }}_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # actions/download-artifact v5.0.0
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum ssh-remote_*.tar.gz > SHA256SUMS
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "ssh-remote ${GITHUB_REF_NAME}" \
+            --generate-notes
